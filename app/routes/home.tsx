@@ -2,9 +2,18 @@ import { useMemo, useState } from "react";
 import { isRouteErrorResponse } from "react-router";
 
 import type { Route } from "./+types/home";
+import { SearchFiltersPanel } from "~/components/filters/search-filters-panel";
 import { MapView } from "~/components/map/map-view";
 import { SidePanel } from "~/components/panel/side-panel";
 import { fetchShapeMetrics } from "~/lib/csv";
+import {
+  ATTRIBUTE_KEYS,
+  createEmptyFilter,
+  distinctValues,
+  FILTER_ATTRIBUTES,
+  type AttributeKey,
+  type Filter,
+} from "~/lib/filters";
 import { fetchSubstations } from "~/lib/geojson";
 
 export function meta(_: Route.MetaArgs) {
@@ -66,12 +75,43 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
   const selected = selectedId ? (byFacilityId.get(selectedId) ?? null) : null;
 
+  // Editable filter rows. Plain serializable state, so URL persistence later
+  // swaps this for `useSearchParams` with no other change.
+  const [filters, setFilters] = useState<Filter[]>([]);
+
+  // Distinct values for each `enum` attribute, computed once from the dataset.
+  const optionsByAttribute = useMemo(() => {
+    const options: Partial<Record<AttributeKey, string[]>> = {};
+    for (const key of ATTRIBUTE_KEYS) {
+      if (FILTER_ATTRIBUTES[key].type === "enum") {
+        options[key] = distinctValues(loaderData, key);
+      }
+    }
+    return options;
+  }, [loaderData]);
+
   return (
     <main className="relative h-screen w-screen overflow-hidden">
       <MapView
         data={loaderData}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        filters={filters}
+      />
+      <SearchFiltersPanel
+        filters={filters}
+        optionsByAttribute={optionsByAttribute}
+        onAddFilter={() => setFilters((prev) => [...prev, createEmptyFilter()])}
+        onUpdateFilter={(updated) =>
+          setFilters((prev) =>
+            prev.map((f) => (f.id === updated.id ? updated : f)),
+          )
+        }
+        onRemoveFilter={(id) =>
+          setFilters((prev) => prev.filter((f) => f.id !== id))
+        }
+        onClearFilters={() => setFilters([])}
+        shifted={selectedId !== null}
       />
       <SidePanel substation={selected} onClose={() => setSelectedId(null)} />
     </main>

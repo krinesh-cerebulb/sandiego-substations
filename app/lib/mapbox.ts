@@ -1,5 +1,6 @@
-import type { ExpressionSpecification } from "mapbox-gl";
+import type { ExpressionSpecification, FilterSpecification } from "mapbox-gl";
 
+import { FILTER_ATTRIBUTES, type Filter } from "./filters";
 import {
   computeCategories,
   computeMetricRange,
@@ -111,6 +112,76 @@ export function buildColorExpression(
     range.max,
     COLOR_RAMP[2],
   ] as unknown as ExpressionSpecification;
+}
+
+/**
+ * Translates the filter list into a single Mapbox layer filter (AND of every
+ * clause). Returns `null` when there are no filters, which clears `setFilter`.
+ * Applied with `setFilter` so non-matching polygons stop rendering — no GeoJSON
+ * reload, and `fill-color` / feature-state are untouched.
+ */
+export function buildFilterExpression(
+  filters: Filter[],
+): FilterSpecification | null {
+  const clauses = filters
+    .map(filterClause)
+    .filter((clause): clause is unknown[] => clause !== null);
+  if (clauses.length === 0) return null;
+  return ["all", ...clauses] as unknown as FilterSpecification;
+}
+
+/** Translates one editable row to a Mapbox clause, or `null` if incomplete. */
+function filterClause(filter: Filter): unknown[] | null {
+  const type = FILTER_ATTRIBUTES[filter.attribute].type;
+
+  if (type === "enum") {
+    if (!filter.value) return null;
+    // Exact match against the dataset's stored value (e.g. "OC", "69/12 kV").
+    const field = ["to-string", ["get", filter.attribute]];
+    return filter.operator === "notEquals"
+      ? ["!=", field, filter.value]
+      : ["==", field, filter.value];
+  }
+
+  if (type === "text") {
+    const value = filter.value.trim();
+    if (!value) return null;
+    // Case-insensitive: downcase the field and compare to a lowered needle.
+    const field = ["downcase", ["to-string", ["get", filter.attribute]]];
+    const needle = value.toLowerCase();
+    if (filter.operator === "contains") return ["in", needle, field];
+    if (filter.operator === "startsWith") {
+      return ["==", ["index-of", needle, field], 0];
+    }
+    return ["==", field, needle]; // equals
+  }
+
+  if (filter.value.trim() === "") return null;
+  const value = Number(filter.value);
+  if (!Number.isFinite(value)) return null;
+
+  // Numeric: guard with `has` so features missing the property don't match.
+  const field = ["to-number", ["get", filter.attribute]];
+  const guard = ["has", filter.attribute];
+  switch (filter.operator) {
+    case "gt":
+      return ["all", guard, [">", field, value]];
+    case "lt":
+      return ["all", guard, ["<", field, value]];
+    case "gte":
+      return ["all", guard, [">=", field, value]];
+    case "lte":
+      return ["all", guard, ["<=", field, value]];
+    case "between": {
+      if (filter.upper.trim() === "") return null;
+      const upper = Number(filter.upper);
+      if (!Number.isFinite(upper)) return null;
+      return ["all", guard, [">=", field, value], ["<=", field, upper]];
+    }
+    case "equals":
+    default:
+      return ["all", guard, ["==", field, value]];
+  }
 }
 
 /**

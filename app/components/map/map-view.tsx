@@ -5,6 +5,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { getBounds } from "~/lib/geojson";
 import {
   buildColorExpression,
+  buildFilterExpression,
   computeColorScale,
   FILL_OPACITY_EXPRESSION,
   FEATURE_ID_PROPERTY,
@@ -13,6 +14,7 @@ import {
   SUBSTATIONS_FILL_LAYER,
   SUBSTATIONS_SOURCE,
 } from "~/lib/mapbox";
+import type { Filter } from "~/lib/filters";
 import type { MetricKey } from "~/lib/metrics";
 import type {
   SubstationCollection,
@@ -32,9 +34,11 @@ interface MapViewProps {
   selectedId: string | null;
   /** Select a substation by `FACILITYID`, or clear with `null`. */
   onSelect: (facilityId: string | null) => void;
+  /** Active attribute filters (combined with AND). */
+  filters: Filter[];
 }
 
-export function MapView({ data, selectedId, onSelect }: MapViewProps) {
+export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   /** Id of the polygon currently flagged `hover` in feature-state. */
@@ -64,6 +68,14 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
   /** Latest expression, so the mount-once `load` handler paints correctly. */
   const colorExpressionRef = useRef(colorExpression);
   colorExpressionRef.current = colorExpression;
+
+  const filterExpression = useMemo(
+    () => buildFilterExpression(filters),
+    [filters],
+  );
+  /** Latest filter, so the mount-once `load` handler filters correctly. */
+  const filterExpressionRef = useRef(filterExpression);
+  filterExpressionRef.current = filterExpression;
 
   // ── Create the map once, wire up sources/layers/handlers on style load ──
   useEffect(() => {
@@ -141,6 +153,12 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
         id: SUBSTATIONS_FILL_LAYER,
         type: "fill",
         source: SUBSTATIONS_SOURCE,
+        // Only set `filter` when one exists — `filter: undefined` fails Mapbox's
+        // layer validation and the layer is silently dropped. The setFilter
+        // effect below applies (and clears) filters after load regardless.
+        ...(filterExpressionRef.current
+          ? { filter: filterExpressionRef.current }
+          : {}),
         paint: {
           "fill-color": colorExpressionRef.current,
           "fill-opacity": FILL_OPACITY_EXPRESSION,
@@ -179,6 +197,16 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
       map.setPaintProperty(SUBSTATIONS_FILL_LAYER, "fill-color", colorExpression);
     });
   }, [colorExpression]);
+
+  // ── Apply attribute filters: hide non-matching polygons ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    whenSourceReady(map, () => {
+      map.setFilter(SUBSTATIONS_FILL_LAYER, filterExpression);
+    });
+  }, [filterExpression]);
 
   // ── Sync the selection highlight down into Mapbox feature-state ──
   useEffect(() => {

@@ -32,6 +32,20 @@ export default function App() {
   return <Outlet />;
 }
 
+/**
+ * Shown during initial client hydration (SPA mode) while route clientLoaders
+ * run. Must live on the root route — SPA mode disallows it on child routes.
+ */
+export function HydrateFallback() {
+  return (
+    <div className="grid h-screen place-items-center bg-background">
+      <p className="animate-pulse text-sm text-muted-foreground">
+        Loading substations…
+      </p>
+    </div>
+  );
+}
+
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let message = "Oops!";
   let details = "An unexpected error occurred.";

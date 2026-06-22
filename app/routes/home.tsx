@@ -52,16 +52,6 @@ export async function clientLoader() {
   return collection;
 }
 
-export function HydrateFallback() {
-  return (
-    <div className="grid h-screen place-items-center bg-background">
-      <p className="animate-pulse text-sm text-muted-foreground">
-        Loading substations…
-      </p>
-    </div>
-  );
-}
-
 export default function Home({ loaderData }: Route.ComponentProps) {
   // Single source of truth for selection — a FACILITYID, never an index.
   // Phase 4 (deep linking) swaps this for `useSearchParams` and nothing else

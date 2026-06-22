@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import { getBounds } from "~/lib/geojson";
 import {
-  buildFillColorExpression,
+  buildColorExpression,
+  computeColorScale,
   FILL_OPACITY_EXPRESSION,
   FEATURE_ID_PROPERTY,
   MAP_STYLE,
@@ -12,6 +13,7 @@ import {
   SUBSTATIONS_FILL_LAYER,
   SUBSTATIONS_SOURCE,
 } from "~/lib/mapbox";
+import type { MetricKey } from "~/lib/metrics";
 import type {
   SubstationCollection,
   SubstationProperties,
@@ -47,6 +49,21 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
   dataRef.current = data;
 
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+
+  // Active thematic metric — map-local state (the side panel/selection don't
+  // need it). Range + color expression are derived from it and the data.
+  const [colorMetric, setColorMetric] = useState<MetricKey>("PENETRATION");
+  const scale = useMemo(
+    () => computeColorScale(data, colorMetric),
+    [data, colorMetric],
+  );
+  const colorExpression = useMemo(
+    () => buildColorExpression(colorMetric, scale),
+    [colorMetric, scale],
+  );
+  /** Latest expression, so the mount-once `load` handler paints correctly. */
+  const colorExpressionRef = useRef(colorExpression);
+  colorExpressionRef.current = colorExpression;
 
   // ── Create the map once, wire up sources/layers/handlers on style load ──
   useEffect(() => {
@@ -125,7 +142,7 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
         type: "fill",
         source: SUBSTATIONS_SOURCE,
         paint: {
-          "fill-color": buildFillColorExpression(),
+          "fill-color": colorExpressionRef.current,
           "fill-opacity": FILL_OPACITY_EXPRESSION,
         },
       });
@@ -152,6 +169,16 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
       (source as mapboxgl.GeoJSONSource).setData(data);
     }
   }, [data]);
+
+  // ── Recolor the fill when the active metric (or its range) changes ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    whenSourceReady(map, () => {
+      map.setPaintProperty(SUBSTATIONS_FILL_LAYER, "fill-color", colorExpression);
+    });
+  }, [colorExpression]);
 
   // ── Sync the selection highlight down into Mapbox feature-state ──
   useEffect(() => {
@@ -203,7 +230,12 @@ export function MapView({ data, selectedId, onSelect }: MapViewProps) {
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapTooltip tooltip={tooltip} />
-      <MapLegend shifted={selectedId !== null} />
+      <MapLegend
+        metric={colorMetric}
+        scale={scale}
+        onMetricChange={setColorMetric}
+        shifted={selectedId !== null}
+      />
     </div>
   );
 }

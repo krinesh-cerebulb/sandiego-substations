@@ -1,6 +1,6 @@
 import type { ExpressionSpecification, FilterSpecification } from "mapbox-gl";
 
-import { FILTER_ATTRIBUTES, type Filter } from "./filters";
+import { ENUM_VALUE_SEPARATOR, FILTER_ATTRIBUTES, type Filter } from "./filters";
 import {
   computeCategories,
   computeMetricRange,
@@ -135,12 +135,19 @@ function filterClause(filter: Filter): unknown[] | null {
   const type = FILTER_ATTRIBUTES[filter.attribute].type;
 
   if (type === "enum") {
-    if (!filter.value) return null;
-    // Exact match against the dataset's stored value (e.g. "OC", "69/12 kV").
-    const field = ["to-string", ["get", filter.attribute]];
-    return filter.operator === "notEquals"
-      ? ["!=", field, filter.value]
-      : ["==", field, filter.value];
+    // Multi-select: any of (OR) the chosen values, or none of them.
+    const values = filter.value
+      .split(ENUM_VALUE_SEPARATOR)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (values.length === 0) return null;
+
+    const membership = [
+      "in",
+      ["to-string", ["get", filter.attribute]],
+      ["literal", values],
+    ];
+    return filter.operator === "notIn" ? ["!", membership] : membership;
   }
 
   if (type === "text") {

@@ -6,7 +6,6 @@
  */
 export interface TooltipState {
   name: string;
-  penetration: number;
   /** Cursor position in container pixels. */
   x: number;
   y: number;
@@ -26,9 +25,6 @@ export function MapTooltip({ tooltip }: MapTooltipProps) {
       style={{ left: tooltip.x, top: tooltip.y }}
     >
       <div className="text-sm font-medium leading-tight">{tooltip.name}</div>
-      <div className="text-xs text-muted-foreground">
-        Penetration: {tooltip.penetration}%
-      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { isRouteErrorResponse } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { isRouteErrorResponse, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/home";
 import { SearchFiltersPanel } from "~/components/filters/search-filters-panel";
@@ -11,6 +11,8 @@ import {
   createEmptyFilter,
   distinctValues,
   FILTER_ATTRIBUTES,
+  filtersFromSearchParams,
+  filtersToSearchParams,
   type AttributeKey,
   type Filter,
 } from "~/lib/filters";
@@ -75,9 +77,20 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
   const selected = selectedId ? (byFacilityId.get(selectedId) ?? null) : null;
 
-  // Editable filter rows. Plain serializable state, so URL persistence later
-  // swaps this for `useSearchParams` with no other change.
-  const [filters, setFilters] = useState<Filter[]>([]);
+  // Editable filter rows, hydrated from the URL on load and mirrored back to it
+  // on change (shareable + survives reload). Local state keeps the editing UX
+  // intact (stable ids, half-typed values); the URL holds the complete filters.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<Filter[]>(() =>
+    filtersFromSearchParams(searchParams),
+  );
+
+  useEffect(() => {
+    const next = filtersToSearchParams(filters);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [filters, searchParams, setSearchParams]);
 
   // Distinct values for each `enum` attribute, computed once from the dataset.
   const optionsByAttribute = useMemo(() => {

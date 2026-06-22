@@ -38,8 +38,11 @@ export const ATTRIBUTE_KEYS = Object.keys(FILTER_ATTRIBUTES) as AttributeKey[];
 
 export type TextOperator = "contains" | "equals" | "startsWith";
 export type NumberOperator = "equals" | "gt" | "lt" | "gte" | "lte" | "between";
-export type EnumOperator = "equals" | "notEquals";
+export type EnumOperator = "in" | "notIn";
 export type Operator = TextOperator | NumberOperator | EnumOperator;
+
+/** Separator for the comma-joined values an `enum` filter stores in `value`. */
+export const ENUM_VALUE_SEPARATOR = ",";
 
 interface OperatorOption<T extends string> {
   value: T;
@@ -62,8 +65,8 @@ export const NUMBER_OPERATORS: ReadonlyArray<OperatorOption<NumberOperator>> = [
 ];
 
 export const ENUM_OPERATORS: ReadonlyArray<OperatorOption<EnumOperator>> = [
-  { value: "equals", label: "is" },
-  { value: "notEquals", label: "is not" },
+  { value: "in", label: "is any of" },
+  { value: "notIn", label: "is none of" },
 ];
 
 /** Operators available for an attribute type. */
@@ -116,4 +119,100 @@ export function createEmptyFilter(): Filter {
     value: "",
     upper: "",
   };
+}
+
+// ── URL persistence ────────────────────────────────────────────────────────
+// Query shape: `<attr>[_<op>]=<value>` — the operator suffix is omitted for an
+// attribute's default operator, so common filters read cleanly:
+//   ?name=tra&district=OC&penetration_gt=20
+
+const SLUG_TO_ATTRIBUTE = new Map<string, AttributeKey>(
+  ATTRIBUTE_KEYS.map((key) => [key.toLowerCase(), key]),
+);
+
+const OPERATOR_SUFFIX: Record<Operator, string> = {
+  contains: "ct",
+  startsWith: "sw",
+  equals: "eq",
+  gt: "gt",
+  lt: "lt",
+  gte: "gte",
+  lte: "lte",
+  between: "bt",
+  in: "in",
+  notIn: "nin",
+};
+const SUFFIX_OPERATOR = new Map<string, Operator>(
+  Object.entries(OPERATOR_SUFFIX).map(([op, suffix]) => [suffix, op as Operator]),
+);
+
+const BETWEEN_SEPARATOR = "..";
+
+function isComplete(filter: Filter): boolean {
+  if (filter.value.trim() === "") return false;
+  if (filter.operator === "between" && filter.upper.trim() === "") return false;
+  return true;
+}
+
+function paramKey(attribute: AttributeKey, operator: Operator): string {
+  const slug = attribute.toLowerCase();
+  return operator === defaultOperator(attribute)
+    ? slug
+    : `${slug}_${OPERATOR_SUFFIX[operator]}`;
+}
+
+/** Splits a param key into its attribute + operator (or `null` if unknown). */
+function parseKey(
+  rawKey: string,
+): { attribute: AttributeKey; operator: Operator } | null {
+  const key = rawKey.toLowerCase();
+
+  const exact = SLUG_TO_ATTRIBUTE.get(key);
+  if (exact) return { attribute: exact, operator: defaultOperator(exact) };
+
+  // Attribute slugs contain underscores too, so match the longest valid slug
+  // by splitting only at the final `_` and validating both halves.
+  const underscore = key.lastIndexOf("_");
+  if (underscore > 0) {
+    const operator = SUFFIX_OPERATOR.get(key.slice(underscore + 1));
+    const attribute = SLUG_TO_ATTRIBUTE.get(key.slice(0, underscore));
+    if (
+      operator &&
+      attribute &&
+      operatorsForType(FILTER_ATTRIBUTES[attribute].type).some(
+        (o) => o.value === operator,
+      )
+    ) {
+      return { attribute, operator };
+    }
+  }
+  return null;
+}
+
+/** Serializes complete filters to query params (incomplete rows are skipped). */
+export function filtersToSearchParams(filters: Filter[]): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const filter of filters) {
+    if (!isComplete(filter)) continue;
+    const value =
+      filter.operator === "between"
+        ? `${filter.value}${BETWEEN_SEPARATOR}${filter.upper}`
+        : filter.value;
+    params.append(paramKey(filter.attribute, filter.operator), value);
+  }
+  return params;
+}
+
+/** Parses query params back into editable filter rows. */
+export function filtersFromSearchParams(params: URLSearchParams): Filter[] {
+  const filters: Filter[] = [];
+  for (const [key, raw] of params) {
+    const parsed = parseKey(key);
+    if (!parsed) continue;
+    const { attribute, operator } = parsed;
+    const [value = "", upper = ""] =
+      operator === "between" ? raw.split(BETWEEN_SEPARATOR) : [raw];
+    filters.push({ id: crypto.randomUUID(), attribute, operator, value, upper });
+  }
+  return filters;
 }

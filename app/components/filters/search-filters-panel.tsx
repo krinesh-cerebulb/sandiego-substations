@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Plus } from "lucide-react";
 
 import { Badge } from "~/components/ui/badge";
@@ -5,7 +6,11 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Separator } from "~/components/ui/separator";
-import type { AttributeKey, Filter } from "~/lib/filters";
+import {
+  FILTER_ATTRIBUTES,
+  type AttributeKey,
+  type Filter,
+} from "~/lib/filters";
 import { cn } from "~/lib/utils";
 import { FilterRow } from "./filter-row";
 
@@ -31,6 +36,17 @@ export function SearchFiltersPanel({
   onClearFilters,
   shifted = false,
 }: SearchFiltersPanelProps) {
+  // Enum attributes already in use — passed to rows so they hide them.
+  const usedEnumAttributes = useMemo(() => {
+    const used = new Set<AttributeKey>();
+    for (const filter of filters) {
+      if (FILTER_ATTRIBUTES[filter.attribute].type === "enum") {
+        used.add(filter.attribute);
+      }
+    }
+    return used;
+  }, [filters]);
+
   const position = cn(
     "absolute left-6 top-6 z-20 transition-transform duration-300 ease-out",
     shifted && "sm:translate-x-96",
@@ -75,6 +91,7 @@ export function SearchFiltersPanel({
                 key={filter.id}
                 filter={filter}
                 options={optionsByAttribute[filter.attribute] ?? []}
+                usedEnumAttributes={usedEnumAttributes}
                 onChange={onUpdateFilter}
                 onRemove={() => onRemoveFilter(filter.id)}
               />

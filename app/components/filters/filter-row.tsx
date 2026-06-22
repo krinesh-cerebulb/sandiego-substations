@@ -12,17 +12,21 @@ import {
 import {
   ATTRIBUTE_KEYS,
   defaultOperator,
+  ENUM_VALUE_SEPARATOR,
   FILTER_ATTRIBUTES,
   operatorsForType,
   type AttributeKey,
   type Filter,
   type Operator,
 } from "~/lib/filters";
+import { MultiSelect } from "./multi-select";
 
 interface FilterRowProps {
   filter: Filter;
   /** Distinct values for the current attribute (used when its type is `enum`). */
   options: string[];
+  /** Enum attributes already used by any row — excluded from this row's list. */
+  usedEnumAttributes: Set<AttributeKey>;
   onChange: (filter: Filter) => void;
   onRemove: () => void;
 }
@@ -31,12 +35,22 @@ interface FilterRowProps {
 export function FilterRow({
   filter,
   options,
+  usedEnumAttributes,
   onChange,
   onRemove,
 }: FilterRowProps) {
   const config = FILTER_ATTRIBUTES[filter.attribute];
   const operators = operatorsForType(config.type);
   const isBetween = config.type === "number" && filter.operator === "between";
+
+  // Enums are multi-select, so one row per enum attribute is enough — hide any
+  // enum used by another row. Text/number stay repeatable (e.g. ranges).
+  const availableAttributes = ATTRIBUTE_KEYS.filter(
+    (key) =>
+      FILTER_ATTRIBUTES[key].type !== "enum" ||
+      key === filter.attribute ||
+      !usedEnumAttributes.has(key),
+  );
 
   return (
     <div className="flex items-center gap-1">
@@ -62,7 +76,7 @@ export function FilterRow({
           <SelectValue />
         </SelectTrigger>
         <SelectContent position="popper">
-          {ATTRIBUTE_KEYS.map((key) => (
+          {availableAttributes.map((key) => (
             <SelectItem key={key} value={key}>
               {FILTER_ATTRIBUTES[key].label}
             </SelectItem>
@@ -93,27 +107,16 @@ export function FilterRow({
       </Select>
 
       {config.type === "enum" ? (
-        <Select
-          value={filter.value}
-          onValueChange={(value) => onChange({ ...filter, value })}
-        >
-          <SelectTrigger
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            size="sm"
-            className="h-7 min-w-0 flex-1 text-xs focus-visible:ring-1 focus-visible:ring-offset-0"
-            aria-label="Value"
-          >
-            <SelectValue placeholder="Select…" />
-          </SelectTrigger>
-          <SelectContent position="popper">
-            {options.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          options={options}
+          selected={
+            filter.value ? filter.value.split(ENUM_VALUE_SEPARATOR) : []
+          }
+          onChange={(values) =>
+            onChange({ ...filter, value: values.join(ENUM_VALUE_SEPARATOR) })
+          }
+          className="min-w-0 flex-1"
+        />
       ) : isBetween ? (
         <div className="flex min-w-0 flex-1 items-center gap-1">
           <Input

@@ -122,7 +122,6 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
       const props = feature.properties as SubstationProperties;
       setTooltip({
         name: props.NAME,
-        penetration: props.PENETRATION,
         x: event.point.x,
         y: event.point.y,
       });

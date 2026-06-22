@@ -1,7 +1,10 @@
+import { useMemo, useState } from "react";
 import { isRouteErrorResponse } from "react-router";
 
 import type { Route } from "./+types/home";
 import { MapView } from "~/components/map/map-view";
+import { SidePanel } from "~/components/panel/side-panel";
+import { fetchShapeMetrics } from "~/lib/csv";
 import { fetchSubstations } from "~/lib/geojson";
 
 export function meta(_: Route.MetaArgs) {
@@ -20,7 +23,22 @@ export function meta(_: Route.MetaArgs) {
  * caught by `ErrorBoundary`.
  */
 export async function clientLoader() {
-  return await fetchSubstations();
+  const [collection, metrics] = await Promise.all([
+    fetchSubstations(),
+    // Non-fatal: if the CSV fails, the map still loads (Shape fields blank).
+    fetchShapeMetrics().catch(() => new Map()),
+  ]);
+
+  // Merge Shape__Area / Shape__Length onto each feature by OBJECTID.
+  for (const feature of collection.features) {
+    const shape = metrics.get(feature.properties.OBJECTID);
+    if (shape) {
+      feature.properties.Shape__Area = shape.area;
+      feature.properties.Shape__Length = shape.length;
+    }
+  }
+
+  return collection;
 }
 
 export function HydrateFallback() {
@@ -34,9 +52,28 @@ export function HydrateFallback() {
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
+  // Single source of truth for selection — a FACILITYID, never an index.
+  // Phase 4 (deep linking) swaps this for `useSearchParams` and nothing else
+  // changes: the map syncs from whatever drives `selectedId`.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Index by FACILITYID once for O(1) lookups — also reusable for Phase 5 search.
+  const byFacilityId = useMemo(
+    () =>
+      new Map(loaderData.features.map((f) => [f.properties.FACILITYID, f])),
+    [loaderData],
+  );
+
+  const selected = selectedId ? (byFacilityId.get(selectedId) ?? null) : null;
+
   return (
-    <main className="h-screen w-screen overflow-hidden">
-      <MapView data={loaderData} />
+    <main className="relative h-screen w-screen overflow-hidden">
+      <MapView
+        data={loaderData}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+      />
+      <SidePanel substation={selected} onClose={() => setSelectedId(null)} />
     </main>
   );
 }

@@ -13,17 +13,25 @@ import type {
  * legend buckets rely on numeric comparison.
  */
 export interface SubstationProperties {
+  OBJECTID: number;
   NAME: string;
   FACILITYID: string;
+  /** Voltage class label, e.g. `"69/12 kV"`. */
   SUBSTATIONTYPE: string;
   DISTRICT: string;
-  IMAP_VOLTAGE: number;
+  /** Pre-formatted voltage string, e.g. `"12kV"` (unit already included). */
+  IMAP_VOLTAGE: string;
+  /** Load-profile summary label, e.g. `"(576 Data Points)"`. */
+  IMAP_LOAD_PROFILE: string;
   EXIST_GEN: number;
   QUE_GEN: number;
   TOT_GEN: number;
   PROJ_LOAD: number;
   /** Renewable penetration percentage — drives polygon color. */
   PENETRATION: number;
+  /** Merged from `substations.csv` at load time (source CRS units). */
+  Shape__Area?: number;
+  Shape__Length?: number;
 }
 
 /** A single substation polygon feature. */

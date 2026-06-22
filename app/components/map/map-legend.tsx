@@ -1,9 +1,27 @@
-import { PENETRATION_BUCKETS } from "~/lib/mapbox";
+import { memo } from "react";
 
-/** Static legend mapping PENETRATION buckets to their polygon colors. */
-export function MapLegend() {
+import { PENETRATION_BUCKETS } from "~/lib/mapbox";
+import { cn } from "~/lib/utils";
+
+interface MapLegendProps {
+  /** When true, shift right by the panel width so the panel doesn't cover it. */
+  shifted?: boolean;
+}
+
+/**
+ * Static legend mapping PENETRATION buckets to their polygon colors.
+ * Memoized so hover-driven `MapView` re-renders don't reconcile it.
+ */
+export const MapLegend = memo(function MapLegend({
+  shifted = false,
+}: MapLegendProps) {
   return (
-    <div className="absolute bottom-6 left-6 z-10 rounded-lg border border-border bg-card/90 p-3 shadow-md backdrop-blur">
+    <div
+      className={cn(
+        "absolute bottom-6 left-6 z-10 rounded-lg border border-border bg-card/90 p-3 shadow-md backdrop-blur transition-transform duration-300 ease-out",
+        shifted && "sm:translate-x-96",
+      )}
+    >
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Penetration
       </div>
@@ -20,4 +38,4 @@ export function MapLegend() {
       </ul>
     </div>
   );
-}
+});

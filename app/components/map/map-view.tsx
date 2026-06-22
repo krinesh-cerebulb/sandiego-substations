@@ -19,15 +19,29 @@ import type {
 import { MapLegend } from "./map-legend";
 import { MapTooltip, type TooltipState } from "./map-tooltip";
 
+/** Matches the panel's `sm:w-96` (384px) — used to pad the map viewport. */
+const PANEL_WIDTH = 384;
+/** Tailwind `sm` breakpoint; below it the panel covers the full map. */
+const PANEL_BREAKPOINT = 640;
+
 interface MapViewProps {
   data: SubstationCollection;
+  /** Currently selected substation `FACILITYID`, or `null`. */
+  selectedId: string | null;
+  /** Select a substation by `FACILITYID`, or clear with `null`. */
+  onSelect: (facilityId: string | null) => void;
 }
 
-export function MapView({ data }: MapViewProps) {
+export function MapView({ data, selectedId, onSelect }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   /** Id of the polygon currently flagged `hover` in feature-state. */
   const hoveredIdRef = useRef<string | number | null>(null);
+  /** Id currently flagged `selected`, so the next change can clear it. */
+  const selectedIdRef = useRef<string | null>(null);
+  /** Always-current callback, so the mount-once effect calls the latest. */
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
   /** Always-current data, so the mount-once effect reads the latest. */
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -60,9 +74,7 @@ export function MapView({ data }: MapViewProps) {
       }
     };
 
-    const handleMouseMove = (
-      event: mapboxgl.MapMouseEvent & { features?: mapboxgl.GeoJSONFeature[] },
-    ) => {
+    const handleMouseMove = (event: mapboxgl.MapLayerMouseEvent) => {
       const feature = event.features?.[0];
       if (!feature || feature.id == null) return;
 
@@ -93,6 +105,14 @@ export function MapView({ data }: MapViewProps) {
       setTooltip(null);
     };
 
+    // One handler selects (hit) or clears (empty space) — keyed on FACILITYID.
+    const handleClick = (event: mapboxgl.MapMouseEvent) => {
+      const [feature] = map.queryRenderedFeatures(event.point, {
+        layers: [SUBSTATIONS_FILL_LAYER],
+      });
+      onSelectRef.current(feature?.id != null ? String(feature.id) : null);
+    };
+
     map.on("load", () => {
       map.addSource(SUBSTATIONS_SOURCE, {
         type: "geojson",
@@ -112,6 +132,7 @@ export function MapView({ data }: MapViewProps) {
 
       map.on("mousemove", SUBSTATIONS_FILL_LAYER, handleMouseMove);
       map.on("mouseleave", SUBSTATIONS_FILL_LAYER, handleMouseLeave);
+      map.on("click", handleClick);
     });
 
     return () => {
@@ -132,6 +153,41 @@ export function MapView({ data }: MapViewProps) {
     }
   }, [data]);
 
+  // ── Sync the selection highlight down into Mapbox feature-state ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    whenSourceReady(map, () => {
+      // Clear the previously highlighted feature, then flag the new one.
+      if (selectedIdRef.current && selectedIdRef.current !== selectedId) {
+        map.setFeatureState(
+          { source: SUBSTATIONS_SOURCE, id: selectedIdRef.current },
+          { selected: false },
+        );
+      }
+      if (selectedId) {
+        map.setFeatureState(
+          { source: SUBSTATIONS_SOURCE, id: selectedId },
+          { selected: true },
+        );
+      }
+      selectedIdRef.current = selectedId;
+    });
+  }, [selectedId]);
+
+  // ── Pan the map out from under the panel when it's open (desktop only) ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    whenSourceReady(map, () => {
+      const left =
+        selectedId && window.innerWidth >= PANEL_BREAKPOINT ? PANEL_WIDTH : 0;
+      map.easeTo({ padding: { top: 0, right: 0, bottom: 0, left }, duration: 300 });
+    });
+  }, [selectedId]);
+
   if (!MAPBOX_TOKEN) {
     return (
       <div className="grid h-full place-items-center p-6 text-center">
@@ -147,9 +203,22 @@ export function MapView({ data }: MapViewProps) {
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapTooltip tooltip={tooltip} />
-      <MapLegend />
+      <MapLegend shifted={selectedId !== null} />
     </div>
   );
+}
+
+/**
+ * Runs `fn` once the substations source exists — immediately if the style has
+ * already loaded, otherwise after the next `load`. Lets selection-driven
+ * effects fire even when they run before the source is added.
+ */
+function whenSourceReady(map: mapboxgl.Map, fn: () => void) {
+  if (map.getSource(SUBSTATIONS_SOURCE)) {
+    fn();
+  } else {
+    map.once("load", fn);
+  }
 }
 
 /** Adapts the framework-agnostic bounding box to Mapbox's bounds shape. */

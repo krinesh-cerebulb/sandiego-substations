@@ -72,7 +72,7 @@ function oklchToHex(L: number, C: number, hDeg: number): string {
  * Browser-only: `getComputedStyle` needs the DOM, so call it from an effect
  * (at map load), never during SSR or at module-eval time.
  */
-export function cssVarToHex(token: string): string {
+function cssVarToHex(token: string): string {
   const name = token.startsWith("--") ? token : `--${token}`;
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
@@ -114,9 +114,14 @@ export function buildFillColorExpression(): ExpressionSpecification {
   ] as unknown as ExpressionSpecification;
 }
 
-/** `fill-opacity` driven by hover feature-state (kept off the React tree). */
+/**
+ * `fill-opacity` driven by feature-state: selected polygons read strongest,
+ * then hovered, then the resting state. Both flags stay off the React tree.
+ */
 export const FILL_OPACITY_EXPRESSION: ExpressionSpecification = [
   "case",
+  ["boolean", ["feature-state", "selected"], false],
+  0.85,
   ["boolean", ["feature-state", "hover"], false],
   0.6,
   0.4,

@@ -240,9 +240,8 @@ export function MapView({
         paint: {
           "fill-color": colorExpressionRef.current,
           "fill-opacity": FILL_OPACITY_EXPRESSION,
-          // Hide the implicit fill outline — it renders in a pass on top of all
-          // fills, so an underlying polygon's edge shows over the one in front.
-          "fill-outline-color": "rgba(0, 0, 0, 0)",
+          // Polygon outline for clearer edge definition.
+          "fill-outline-color": "rgb(100, 116, 139)",
         },
       });
 

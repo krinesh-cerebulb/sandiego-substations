@@ -337,7 +337,6 @@ export function MapView({
         onMetricChange={setColorMetric}
         onToggleFilters={onToggleFilters}
         filtersActive={filters.some((f) => f.value.trim() !== "")}
-        shifted={selectedId !== null}
       />
     </div>
   );

@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { COLOR_RAMP, type ColorScale } from "~/lib/mapbox";
+import { type ColorScale, type NumericClass } from "~/lib/mapbox";
 import {
   formatMetricValue,
   METRIC_KEYS,
@@ -101,7 +101,11 @@ export const MapLegend = memo(function MapLegend({
         </Select>
 
         {scale.kind === "numeric" ? (
-          <NumericScale metric={metric} range={scale.range} />
+          <NumericScale
+            metric={metric}
+            range={scale.range}
+            classes={scale.classes}
+          />
         ) : (
           <CategoricalScale entries={scale.entries} />
         )}
@@ -110,29 +114,38 @@ export const MapLegend = memo(function MapLegend({
   );
 });
 
-/** Continuous gradient with min / mid / max value labels. */
+/** Discrete numeric classes — a swatch + value range per class. */
 function NumericScale({
   metric,
   range,
+  classes,
 }: {
   metric: MetricKey;
   range: MetricRange | null;
+  classes: NumericClass[];
 }) {
-  const gradient = `linear-gradient(to right, ${COLOR_RAMP.join(", ")})`;
-  const mid = range ? (range.min + range.max) / 2 : null;
+  if (!range || classes.length === 0) {
+    return <p className="text-xs text-muted-foreground">No data</p>;
+  }
 
   return (
-    <div className="space-y-1.5">
-      <div
-        className="h-2 w-full rounded-full"
-        style={{ background: gradient }}
-      />
-      <div className="flex justify-between gap-1 font-mono text-[11px] tabular-nums text-muted-foreground">
-        <span>{range ? formatMetricValue(range.min, metric, true) : "—"}</span>
-        <span>{mid !== null ? formatMetricValue(mid, metric, true) : "—"}</span>
-        <span>{range ? formatMetricValue(range.max, metric, true) : "—"}</span>
-      </div>
-    </div>
+    <ul className="space-y-1">
+      {classes.map((cls, i) => {
+        const upper = i < classes.length - 1 ? classes[i + 1].min : range.max;
+        return (
+          <li key={cls.min} className="flex items-center gap-2 text-sm">
+            <span
+              className="size-3.5 shrink-0 rounded-sm border border-black/10"
+              style={{ backgroundColor: cls.color }}
+            />
+            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+              {formatMetricValue(cls.min, metric, true)} –{" "}
+              {formatMetricValue(upper, metric, true)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

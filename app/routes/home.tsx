@@ -127,7 +127,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           })
         }
         onClearFilters={() => setFilters([createEmptyFilter()])}
-        shifted={selectedId !== null}
       />
       <SidePanel substation={selected} onClose={() => setSelectedId(null)} />
     </main>

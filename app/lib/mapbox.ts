@@ -40,37 +40,59 @@ export const SUBSTATIONS_FILL_LAYER = "substations-fill";
 export const FEATURE_ID_PROPERTY = "FACILITYID";
 
 /**
- * Continuous low→high ramp (green → amber → red) for numeric metrics. Muted on
- * purpose: fills render near-solid (see `FILL_OPACITY_EXPRESSION`), so the color
- * itself — not transparency — keeps them easy on the eyes. Shared by the fill
- * expression and the legend gradient so they can't drift.
+ * Pastel colors for the numeric metric's discrete classes — one per class,
+ * ordered low → high. Not a strict sequential ramp; just distinct soft tones.
  */
-export const COLOR_RAMP = ["#63a87e", "#e0bd5f", "#d97b6e"] as const;
+export const COLOR_RAMP = [
+  "#9ed5b8",
+  "#c9b3e4",
+  "#f5dd8e",
+  "#f2a89a",
+  "#a6c4e8",
+] as const;
 
-/** Soft qualitative palette for categorical metrics (cycled if categories exceed it). */
+/** Pastel qualitative palette for categorical metrics (cycled if categories exceed it). */
 export const CATEGORY_PALETTE = [
-  "#6c9bd2",
-  "#67b08a",
-  "#e6a366",
-  "#d98ab4",
-  "#a596d6",
-  "#5cb5c4",
-  "#d9b95e",
-  "#dd8676",
-  "#8c9cd9",
-  "#9bbd6e",
+  "#efbc8c",
+  "#c7d99b",
+  "#ccb1db",
+  "#f2c5d5",
+  "#bfe0d3",
+  "#ec988f",
+  "#f1e28d",
+  "#bcc8e4",
+  "#d1d1c9",
+  "#ebc8a1",
 ] as const;
 
 /** Color for values outside the palette or missing entirely. */
 const FALLBACK_COLOR = "#9ca3af";
 
+/** A discrete numeric class: its lower bound and color. */
+export interface NumericClass {
+  min: number;
+  color: string;
+}
+
+/** Equal-interval classes across the range — one per ramp color, low → high. */
+function buildNumericClasses(range: MetricRange | null): NumericClass[] {
+  if (!range) return [];
+  if (range.max <= range.min) return [{ min: range.min, color: COLOR_RAMP[0] }];
+
+  const span = range.max - range.min;
+  return COLOR_RAMP.map((color, i) => ({
+    min: range.min + (span * i) / COLOR_RAMP.length,
+    color,
+  }));
+}
+
 /**
- * Resolved coloring for a metric — numeric (a min/max range) or categorical
- * (each distinct value paired with a palette color). Computed once and shared
- * by both the map fill expression and the legend so they always match.
+ * Resolved coloring for a metric — numeric (a min/max range plus discrete
+ * classes) or categorical (each distinct value paired with a palette color).
+ * Computed once and shared by both the map fill expression and the legend.
  */
 export type ColorScale =
-  | { kind: "numeric"; range: MetricRange | null }
+  | { kind: "numeric"; range: MetricRange | null; classes: NumericClass[] }
   | { kind: "categorical"; entries: Array<{ value: string; color: string }> };
 
 /** Builds the color scale for `metric` from the dataset. */
@@ -85,12 +107,13 @@ export function computeColorScale(
     }));
     return { kind: "categorical", entries };
   }
-  return { kind: "numeric", range: computeMetricRange(collection, metric) };
+  const range = computeMetricRange(collection, metric);
+  return { kind: "numeric", range, classes: buildNumericClasses(range) };
 }
 
 /**
  * Builds the `fill-color` expression for the active metric:
- *  - numeric → `interpolate` across the [min, mid, max] ramp,
+ *  - numeric → `step` into discrete classes (a classic choropleth),
  *  - categorical → `match` each value to its palette color.
  * Returns a flat color when there's nothing to scale.
  */
@@ -109,20 +132,19 @@ export function buildColorExpression(
     ] as unknown as ExpressionSpecification;
   }
 
-  const { range } = scale;
-  if (!range || range.max <= range.min) return COLOR_RAMP[0];
+  const { classes } = scale;
+  if (classes.length === 0) return COLOR_RAMP[0];
+  if (classes.length === 1) return classes[0].color;
 
-  const mid = (range.min + range.max) / 2;
+  // step: first color applies below the second class's lower bound, then each
+  // subsequent [bound, color] pair opens the next class.
+  const [first, ...rest] = classes;
+  const stops = rest.flatMap((c) => [c.min, c.color]);
   return [
-    "interpolate",
-    ["linear"],
+    "step",
     ["to-number", ["get", metric]],
-    range.min,
-    COLOR_RAMP[0],
-    mid,
-    COLOR_RAMP[1],
-    range.max,
-    COLOR_RAMP[2],
+    first.color,
+    ...stops,
   ] as unknown as ExpressionSpecification;
 }
 

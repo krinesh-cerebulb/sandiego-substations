@@ -1,5 +1,14 @@
-import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
+import { ScrollArea } from "~/components/ui/scroll-area";
 import { cn } from "~/lib/utils";
 import type { SubstationFeature } from "~/types/substation";
 import { SubstationDetails } from "./substation-details";
@@ -11,31 +20,42 @@ interface SidePanelProps {
 }
 
 /**
- * Left-hand detail panel, overlaid on the map.
- *
- * Slides in when a substation is selected and slides out when cleared, on all
- * breakpoints. The last selection is kept rendered during the slide-out so the
- * panel doesn't blank mid-animation.
+ * Selected-substation details as a translucent floating card (top-left),
+ * sharing the legend/filter styling. Grows in on select, unmounts on close.
  */
 export function SidePanel({ substation, onClose }: SidePanelProps) {
-  const open = substation !== null;
-  const [displayed, setDisplayed] = useState(substation);
-
-  useEffect(() => {
-    if (substation) setDisplayed(substation);
-  }, [substation]);
+  if (!substation) return null;
 
   return (
-    <aside
-      aria-hidden={!open}
+    <Card
+      size="sm"
       className={cn(
-        "absolute inset-y-0 left-0 z-20 w-full max-w-sm border-r border-border bg-card text-card-foreground shadow-xl transition-transform duration-300 ease-out sm:w-96 sm:max-w-none",
-        open ? "translate-x-0" : "-translate-x-full pointer-events-none",
+        "absolute left-6 top-6 z-30 w-80 gap-2 bg-card/90 shadow-md backdrop-blur",
+        "origin-top-left animate-in fade-in-0 zoom-in-95 duration-200",
       )}
     >
-      {displayed && (
-        <SubstationDetails properties={displayed.properties} onClose={onClose} />
-      )}
-    </aside>
+      <CardHeader>
+        <CardTitle className="truncate text-sm">
+          {substation.properties.NAME}
+        </CardTitle>
+        <CardAction>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground"
+            onClick={onClose}
+            aria-label="Close details"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </CardAction>
+      </CardHeader>
+
+      <CardContent>
+        <ScrollArea className="max-h-[calc(100vh-3rem)]">
+          <SubstationDetails properties={substation.properties} />
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 }

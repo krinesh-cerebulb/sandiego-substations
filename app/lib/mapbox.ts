@@ -1,6 +1,10 @@
 import type { ExpressionSpecification, FilterSpecification } from "mapbox-gl";
 
-import { ENUM_VALUE_SEPARATOR, FILTER_ATTRIBUTES, type Filter } from "./filters";
+import {
+  ENUM_VALUE_SEPARATOR,
+  FILTER_ATTRIBUTES,
+  type Filter,
+} from "./filters";
 import {
   computeCategories,
   computeMetricRange,
@@ -36,23 +40,25 @@ export const SUBSTATIONS_FILL_LAYER = "substations-fill";
 export const FEATURE_ID_PROPERTY = "FACILITYID";
 
 /**
- * Continuous low→high color ramp (green → yellow → red) for numeric metrics.
- * Shared by the fill expression and the legend gradient so they can't drift.
+ * Continuous low→high ramp (green → amber → red) for numeric metrics. Muted on
+ * purpose: fills render near-solid (see `FILL_OPACITY_EXPRESSION`), so the color
+ * itself — not transparency — keeps them easy on the eyes. Shared by the fill
+ * expression and the legend gradient so they can't drift.
  */
-export const COLOR_RAMP = ["#22c55e", "#eab308", "#ef4444"] as const;
+export const COLOR_RAMP = ["#63a87e", "#e0bd5f", "#d97b6e"] as const;
 
-/** Qualitative palette for categorical metrics (cycled if categories exceed it). */
+/** Soft qualitative palette for categorical metrics (cycled if categories exceed it). */
 export const CATEGORY_PALETTE = [
-  "#2563eb",
-  "#16a34a",
-  "#f97316",
-  "#db2777",
-  "#9333ea",
-  "#0891b2",
-  "#ca8a04",
-  "#dc2626",
-  "#4f46e5",
-  "#65a30d",
+  "#6c9bd2",
+  "#67b08a",
+  "#e6a366",
+  "#d98ab4",
+  "#a596d6",
+  "#5cb5c4",
+  "#d9b95e",
+  "#dd8676",
+  "#8c9cd9",
+  "#9bbd6e",
 ] as const;
 
 /** Color for values outside the palette or missing entirely. */
@@ -206,6 +212,6 @@ export const FILL_OPACITY_EXPRESSION: ExpressionSpecification = [
   ["boolean", ["feature-state", "selected"], false],
   1,
   ["boolean", ["feature-state", "hover"], false],
-  0.8,
-  0.6,
+  1,
+  0.85,
 ];

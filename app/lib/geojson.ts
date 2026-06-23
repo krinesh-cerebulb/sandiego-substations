@@ -1,6 +1,7 @@
 import type {
   BoundingBox,
   SubstationCollection,
+  SubstationFeature,
 } from "~/types/substation";
 
 /** Path to the static dataset served from `public/`. */
@@ -60,4 +61,30 @@ export function getBounds(collection: SubstationCollection): BoundingBox | null 
   }
 
   return Number.isFinite(west) ? [west, south, east, north] : null;
+}
+
+/** Bounding-box center `[lng, lat]` of a feature — used to anchor its label. */
+export function getFeatureCenter(
+  feature: SubstationFeature,
+): [number, number] {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+
+  const polygons =
+    feature.geometry.type === "MultiPolygon"
+      ? feature.geometry.coordinates
+      : [feature.geometry.coordinates];
+
+  for (const rings of polygons) {
+    for (const [lng, lat] of rings[0]) {
+      if (lng < west) west = lng;
+      if (lng > east) east = lng;
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+    }
+  }
+
+  return [(west + east) / 2, (south + north) / 2];
 }

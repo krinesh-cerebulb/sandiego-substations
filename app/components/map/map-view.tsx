@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
-import { getBounds } from "~/lib/geojson";
+import { getBounds, getFeatureCenter } from "~/lib/geojson";
 import {
   buildColorExpression,
   buildFilterExpression,
@@ -17,12 +17,8 @@ import {
 } from "~/lib/mapbox";
 import type { Filter } from "~/lib/filters";
 import type { MetricKey } from "~/lib/metrics";
-import type {
-  SubstationCollection,
-  SubstationProperties,
-} from "~/types/substation";
+import type { SubstationCollection } from "~/types/substation";
 import { MapLegend } from "./map-legend";
-import { MapTooltip } from "./map-tooltip";
 
 /** Tailwind `sm` breakpoint; below it the left rail collapses. */
 const PANEL_BREAKPOINT = 640;
@@ -35,6 +31,17 @@ const LEFT_RESERVE = 420;
 function mapPadding(): mapboxgl.PaddingOptions {
   const left = window.innerWidth >= PANEL_BREAKPOINT ? LEFT_RESERVE : 48;
   return { top: 48, right: 48, bottom: 48, left };
+}
+
+const LABEL_BASE =
+  "pointer-events-none whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md";
+/** Border accent toggled by classList — a primary accent for the selected one. */
+const LABEL_SELECTED = "border-primary";
+const LABEL_DEFAULT = "border-border";
+
+/** Full class string for a freshly-created label element. */
+function labelClass(selected: boolean): string {
+  return `${LABEL_BASE} ${selected ? LABEL_SELECTED : LABEL_DEFAULT}`;
 }
 
 interface MapViewProps {
@@ -62,15 +69,17 @@ export function MapView({
   const hoveredIdRef = useRef<string | number | null>(null);
   /** Id currently flagged `selected`, so the next change can clear it. */
   const selectedIdRef = useRef<string | null>(null);
+  /** Always-current selection, read by the imperative label logic. */
+  const selectedIdPropRef = useRef(selectedId);
+  selectedIdPropRef.current = selectedId;
+  /** Bridge to the label updater defined inside the mount-once effect. */
+  const updateLabelRef = useRef<(() => void) | null>(null);
   /** Always-current callback, so the mount-once effect calls the latest. */
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   /** Always-current data, so the mount-once effect reads the latest. */
   const dataRef = useRef(data);
   dataRef.current = data;
-
-  /** Imperatively-positioned hover tooltip — kept out of React state. */
-  const tooltipRef = useRef<HTMLDivElement>(null);
 
   // Active thematic metric — map-local state (the side panel/selection don't
   // need it). Range + color expression are derived from it and the data.
@@ -111,6 +120,63 @@ export function MapView({
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
+    // Two geo-anchored labels: a persistent one for the selected polygon and a
+    // transient one for the hovered polygon (only when it's a different one), so
+    // the active label stays put while you hover around.
+    let selectedMarker: mapboxgl.Marker | null = null;
+    let hoverMarker: mapboxgl.Marker | null = null;
+
+    const setMarker = (
+      marker: mapboxgl.Marker | null,
+      id: string | null,
+      selected: boolean,
+    ): mapboxgl.Marker | null => {
+      const feature = id
+        ? dataRef.current.features.find((f) => f.properties.FACILITYID === id)
+        : undefined;
+      if (!feature) {
+        marker?.remove();
+        return null;
+      }
+
+      const center = getFeatureCenter(feature);
+      if (!marker) {
+        const element = document.createElement("div");
+        element.className = labelClass(selected);
+        element.textContent = feature.properties.NAME;
+        return new mapboxgl.Marker({ element }).setLngLat(center).addTo(map);
+      }
+
+      // Toggle only the accent so Mapbox's `mapboxgl-marker` class (which makes
+      // it `position: absolute`) survives — replacing className drops it and the
+      // label balloons to full width.
+      const element = marker.getElement();
+      element.classList.toggle(LABEL_SELECTED, selected);
+      element.classList.toggle(LABEL_DEFAULT, !selected);
+      element.textContent = feature.properties.NAME;
+      marker.setLngLat(center);
+      return marker;
+    };
+
+    const updateHover = () => {
+      const hovered =
+        hoveredIdRef.current != null ? String(hoveredIdRef.current) : null;
+      // No separate hover label for the already-selected polygon.
+      const id =
+        hovered && hovered !== selectedIdPropRef.current ? hovered : null;
+      hoverMarker = setMarker(hoverMarker, id, false);
+    };
+
+    const updateLabels = () => {
+      selectedMarker = setMarker(
+        selectedMarker,
+        selectedIdPropRef.current,
+        true,
+      );
+      updateHover();
+    };
+    updateLabelRef.current = updateLabels;
+
     const clearHover = () => {
       if (hoveredIdRef.current !== null) {
         map.setFeatureState(
@@ -126,9 +192,8 @@ export function MapView({
       if (!feature || feature.id == null) return;
 
       map.getCanvas().style.cursor = "pointer";
-      const tooltip = tooltipRef.current;
 
-      // Move the hover flag + tooltip text only when the feature changes.
+      // Move the hover flag + label only when the feature under the cursor changes.
       if (hoveredIdRef.current !== feature.id) {
         clearHover();
         hoveredIdRef.current = feature.id;
@@ -136,24 +201,14 @@ export function MapView({
           { source: SUBSTATIONS_SOURCE, id: feature.id },
           { hover: true },
         );
-        if (tooltip) {
-          tooltip.textContent = (
-            feature.properties as SubstationProperties
-          ).NAME;
-        }
-      }
-
-      // Position follows the cursor every move — no React state, no re-render.
-      if (tooltip) {
-        tooltip.style.opacity = "1";
-        tooltip.style.transform = `translate(${event.point.x}px, ${event.point.y}px) translate(-50%, calc(-100% - 12px))`;
+        updateHover();
       }
     };
 
     const handleMouseLeave = () => {
       map.getCanvas().style.cursor = "";
       clearHover();
-      if (tooltipRef.current) tooltipRef.current.style.opacity = "0";
+      updateHover(); // drops the hover label; the selected one stays
     };
 
     // One handler selects (hit) or clears (empty space) — keyed on FACILITYID.
@@ -185,6 +240,9 @@ export function MapView({
         paint: {
           "fill-color": colorExpressionRef.current,
           "fill-opacity": FILL_OPACITY_EXPRESSION,
+          // Hide the implicit fill outline — it renders in a pass on top of all
+          // fills, so an underlying polygon's edge shows over the one in front.
+          "fill-outline-color": "rgba(0, 0, 0, 0)",
         },
       });
 
@@ -194,6 +252,9 @@ export function MapView({
     });
 
     return () => {
+      selectedMarker?.remove();
+      hoverMarker?.remove();
+      updateLabelRef.current = null;
       map.remove();
       mapRef.current = null;
       hoveredIdRef.current = null;
@@ -231,7 +292,7 @@ export function MapView({
     });
   }, [filterExpression]);
 
-  // ── Sync the selection highlight down into Mapbox feature-state ──
+  // ── Sync the selection highlight + label down into Mapbox ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -252,6 +313,9 @@ export function MapView({
       }
       selectedIdRef.current = selectedId;
     });
+
+    // Keep the label in sync even when selection changes from outside the map.
+    updateLabelRef.current?.();
   }, [selectedId]);
 
   if (!MAPBOX_TOKEN) {
@@ -268,7 +332,6 @@ export function MapView({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      <MapTooltip ref={tooltipRef} />
       <MapLegend
         metric={colorMetric}
         scale={scale}

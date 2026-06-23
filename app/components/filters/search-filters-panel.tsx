@@ -1,11 +1,15 @@
 import { useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { Separator } from "~/components/ui/separator";
 import {
   FILTER_ATTRIBUTES,
   type AttributeKey,
@@ -15,6 +19,9 @@ import { cn } from "~/lib/utils";
 import { FilterRow } from "./filter-row";
 
 interface SearchFiltersPanelProps {
+  /** Whether the panel is open (toggled from the legend's filter icon). */
+  open: boolean;
+  onClose: () => void;
   filters: Filter[];
   /** Distinct values per `enum` attribute, for the value dropdowns. */
   optionsByAttribute: Partial<Record<AttributeKey, string[]>>;
@@ -26,8 +33,13 @@ interface SearchFiltersPanelProps {
   shifted?: boolean;
 }
 
-/** Floating Search & Filters panel — separate from the legend by design. */
+/**
+ * Filters panel — opens from the legend's filter icon, growing up out of its
+ * corner. Shares the legend's card styling so they read as a matched pair.
+ */
 export function SearchFiltersPanel({
+  open,
+  onClose,
   filters,
   optionsByAttribute,
   onAddFilter,
@@ -47,43 +59,37 @@ export function SearchFiltersPanel({
     return used;
   }, [filters]);
 
-  const position = cn(
-    "absolute left-6 top-6 z-20 transition-transform duration-300 ease-out",
-    shifted && "sm:translate-x-96",
-  );
+  if (!open) return null;
 
-  // Empty state: just the button. The card grows out of it on first add.
-  if (filters.length === 0) {
-    return (
-      <Button
-        className={cn(position, "h-8 gap-1.5 shadow-md")}
-        onClick={onAddFilter}
-      >
-        <Plus className="size-4" />
-        Add filter
-      </Button>
-    );
-  }
+  // Nothing to clear when it's just the single, untouched default row.
+  const hasContent =
+    filters.length > 1 || filters.some((f) => f.value.trim() !== "");
 
   return (
     <Card
+      size="sm"
       className={cn(
-        position,
-        "w-80 origin-top-left gap-0 py-0 shadow-md",
+        "absolute bottom-10 left-68 z-20 w-80 origin-bottom-left gap-2 bg-card/90 shadow-md backdrop-blur",
         "animate-in fade-in-0 zoom-in-95 duration-200",
+        shifted && "sm:translate-x-96",
       )}
     >
-      <CardHeader className="flex items-center justify-between gap-2 px-3 py-2">
-        <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Filters
-        </CardTitle>
-        <Badge variant="secondary" className="h-5 px-1.5">
-          {filters.length}
-        </Badge>
+      <CardHeader>
+        <CardTitle className="text-sm">Filters</CardTitle>
+        <CardAction>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground"
+            onClick={onClose}
+            aria-label="Close filters"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </CardAction>
       </CardHeader>
-      <Separator />
 
-      <CardContent className="space-y-1.5 px-3 py-2">
+      <CardContent className="space-y-1.5">
         <ScrollArea className="-mx-1 max-h-64">
           <div className="space-y-1.5 p-1">
             {filters.map((filter) => (
@@ -99,19 +105,25 @@ export function SearchFiltersPanel({
           </div>
         </ScrollArea>
 
-        <div className="flex items-center justify-between pt-0.5">
-          <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={onAddFilter}>
+        <div className="flex items-center justify-between">
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={onAddFilter}
+          >
             <Plus className="size-3.5" />
             Add filter
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={onClearFilters}
-          >
-            Clear all
-          </Button>
+          {hasContent && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={onClearFilters}
+            >
+              Clear all
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

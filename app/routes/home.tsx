@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { isRouteErrorResponse, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/home";
@@ -71,9 +71,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   // on change (shareable + survives reload). Local state keeps the editing UX
   // intact (stable ids, half-typed values); the URL holds the complete filters.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = useState<Filter[]>(() =>
-    filtersFromSearchParams(searchParams),
-  );
+  const [filters, setFilters] = useState<Filter[]>(() => {
+    const fromUrl = filtersFromSearchParams(searchParams);
+    // Default to one NAME row so the panel opens with a ready-to-edit filter.
+    return fromUrl.length > 0 ? fromUrl : [createEmptyFilter()];
+  });
+
+  // Filters panel visibility — toggled from the legend's filter icon.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const toggleFilters = useCallback(() => setFiltersOpen((o) => !o), []);
 
   useEffect(() => {
     const next = filtersToSearchParams(filters);
@@ -100,8 +106,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         selectedId={selectedId}
         onSelect={setSelectedId}
         filters={filters}
+        onToggleFilters={toggleFilters}
       />
       <SearchFiltersPanel
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
         filters={filters}
         optionsByAttribute={optionsByAttribute}
         onAddFilter={() => setFilters((prev) => [...prev, createEmptyFilter()])}
@@ -111,9 +120,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           )
         }
         onRemoveFilter={(id) =>
-          setFilters((prev) => prev.filter((f) => f.id !== id))
+          setFilters((prev) => {
+            // Always keep at least the default row.
+            const next = prev.filter((f) => f.id !== id);
+            return next.length > 0 ? next : [createEmptyFilter()];
+          })
         }
-        onClearFilters={() => setFilters([])}
+        onClearFilters={() => setFilters([createEmptyFilter()])}
         shifted={selectedId !== null}
       />
       <SidePanel substation={selected} onClose={() => setSelectedId(null)} />

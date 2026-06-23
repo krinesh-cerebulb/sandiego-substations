@@ -24,10 +24,18 @@ import type {
 import { MapLegend } from "./map-legend";
 import { MapTooltip } from "./map-tooltip";
 
-/** Matches the panel's `sm:w-96` (384px) — used to pad the map viewport. */
-const PANEL_WIDTH = 384;
-/** Tailwind `sm` breakpoint; below it the panel covers the full map. */
+/** Tailwind `sm` breakpoint; below it the left rail collapses. */
 const PANEL_BREAKPOINT = 640;
+/** Left viewport padding (desktop) — shifts the data right, freeing the left
+ *  area for KPI overlays. Also keeps the data clear of the detail panel,
+ *  since this exceeds the panel's width (`sm:w-96` = 384px). */
+const LEFT_RESERVE = 420;
+
+/** Camera padding: reserves the left area on desktop, modest margins on mobile. */
+function mapPadding(): mapboxgl.PaddingOptions {
+  const left = window.innerWidth >= PANEL_BREAKPOINT ? LEFT_RESERVE : 48;
+  return { top: 48, right: 48, bottom: 48, left };
+}
 
 interface MapViewProps {
   data: SubstationCollection;
@@ -37,9 +45,17 @@ interface MapViewProps {
   onSelect: (facilityId: string | null) => void;
   /** Active attribute filters (combined with AND). */
   filters: Filter[];
+  /** Opens/closes the filters panel (toggle lives in the legend). */
+  onToggleFilters: () => void;
 }
 
-export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
+export function MapView({
+  data,
+  selectedId,
+  onSelect,
+  filters,
+  onToggleFilters,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   /** Id of the polygon currently flagged `hover` in feature-state. */
@@ -89,7 +105,7 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
       container: containerRef.current,
       style: MAP_STYLE,
       bounds: toLngLatBounds(dataRef.current),
-      fitBoundsOptions: { padding: 48 },
+      fitBoundsOptions: { padding: mapPadding() },
     });
     mapRef.current = map;
 
@@ -238,18 +254,6 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
     });
   }, [selectedId]);
 
-  // ── Pan the map out from under the panel when it's open (desktop only) ──
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    whenSourceReady(map, () => {
-      const left =
-        selectedId && window.innerWidth >= PANEL_BREAKPOINT ? PANEL_WIDTH : 0;
-      map.easeTo({ padding: { top: 0, right: 0, bottom: 0, left }, duration: 300 });
-    });
-  }, [selectedId]);
-
   if (!MAPBOX_TOKEN) {
     return (
       <div className="grid h-full place-items-center p-6 text-center">
@@ -269,6 +273,8 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
         metric={colorMetric}
         scale={scale}
         onMetricChange={setColorMetric}
+        onToggleFilters={onToggleFilters}
+        filtersActive={filters.some((f) => f.value.trim() !== "")}
         shifted={selectedId !== null}
       />
     </div>

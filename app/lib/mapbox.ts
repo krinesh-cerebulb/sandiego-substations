@@ -13,8 +13,14 @@ import type { SubstationCollection } from "~/types/substation";
 /** Public Mapbox token, injected at build time (see `.env`). */
 export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-/** Base map style. */
-export const MAP_STYLE = "mapbox://styles/mapbox/light-v11";
+/** Base map style — Mapbox Standard (natural 3D basemap). */
+export const MAP_STYLE = "mapbox://styles/mapbox/standard";
+
+/**
+ * Slot for inserting our layers in the Standard style: above the basemap and
+ * terrain, below labels/POIs. Ignored by classic styles.
+ */
+export const FILL_SLOT = "middle";
 
 /** Single source + the layer derived from it. Centralized so every */
 /** `addLayer` / `setFeatureState` / `setPaintProperty` shares one name. */

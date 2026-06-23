@@ -1,30 +1,21 @@
-/**
- * The hovered feature's display data plus its screen-space anchor.
- *
- * This is the *only* hover information that lives in React state — the polygon
- * highlight itself is handled by Mapbox feature-state, not by re-rendering.
- */
-export interface TooltipState {
-  name: string;
-  /** Cursor position in container pixels. */
-  x: number;
-  y: number;
-}
+import type { Ref } from "react";
 
 interface MapTooltipProps {
-  tooltip: TooltipState | null;
+  ref?: Ref<HTMLDivElement>;
 }
 
-/** Lightweight cursor-following tooltip. Renders nothing when not hovering. */
-export function MapTooltip({ tooltip }: MapTooltipProps) {
-  if (!tooltip) return null;
-
+/**
+ * Hover tooltip positioned imperatively from `MapView`'s mousemove handler
+ * (text via `textContent`, position via `transform`). Keeping it out of React
+ * state means cursor tracking triggers zero re-renders — the polygon highlight
+ * already lives in Mapbox feature-state.
+ */
+export function MapTooltip({ ref }: MapTooltipProps) {
   return (
     <div
-      className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+12px)] rounded-md border border-border bg-popover px-2.5 py-1.5 text-popover-foreground shadow-md"
-      style={{ left: tooltip.x, top: tooltip.y }}
-    >
-      <div className="text-sm font-medium leading-tight">{tooltip.name}</div>
-    </div>
+      ref={ref}
+      className="pointer-events-none absolute left-0 top-0 z-10 rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm font-medium leading-tight text-popover-foreground opacity-0 shadow-md will-change-transform"
+      style={{ transform: "translate(-9999px, -9999px)" }}
+    />
   );
 }

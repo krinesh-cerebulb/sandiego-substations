@@ -8,6 +8,7 @@ import {
   buildFilterExpression,
   computeColorScale,
   FILL_OPACITY_EXPRESSION,
+  FILL_SLOT,
   FEATURE_ID_PROPERTY,
   MAP_STYLE,
   MAPBOX_TOKEN,
@@ -21,7 +22,7 @@ import type {
   SubstationProperties,
 } from "~/types/substation";
 import { MapLegend } from "./map-legend";
-import { MapTooltip, type TooltipState } from "./map-tooltip";
+import { MapTooltip } from "./map-tooltip";
 
 /** Matches the panel's `sm:w-96` (384px) — used to pad the map viewport. */
 const PANEL_WIDTH = 384;
@@ -52,7 +53,8 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  /** Imperatively-positioned hover tooltip — kept out of React state. */
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   // Active thematic metric — map-local state (the side panel/selection don't
   // need it). Range + color expression are derived from it and the data.
@@ -108,8 +110,9 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
       if (!feature || feature.id == null) return;
 
       map.getCanvas().style.cursor = "pointer";
+      const tooltip = tooltipRef.current;
 
-      // Move the hover flag to the feature under the cursor.
+      // Move the hover flag + tooltip text only when the feature changes.
       if (hoveredIdRef.current !== feature.id) {
         clearHover();
         hoveredIdRef.current = feature.id;
@@ -117,20 +120,24 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
           { source: SUBSTATIONS_SOURCE, id: feature.id },
           { hover: true },
         );
+        if (tooltip) {
+          tooltip.textContent = (
+            feature.properties as SubstationProperties
+          ).NAME;
+        }
       }
 
-      const props = feature.properties as SubstationProperties;
-      setTooltip({
-        name: props.NAME,
-        x: event.point.x,
-        y: event.point.y,
-      });
+      // Position follows the cursor every move — no React state, no re-render.
+      if (tooltip) {
+        tooltip.style.opacity = "1";
+        tooltip.style.transform = `translate(${event.point.x}px, ${event.point.y}px) translate(-50%, calc(-100% - 12px))`;
+      }
     };
 
     const handleMouseLeave = () => {
       map.getCanvas().style.cursor = "";
       clearHover();
-      setTooltip(null);
+      if (tooltipRef.current) tooltipRef.current.style.opacity = "0";
     };
 
     // One handler selects (hit) or clears (empty space) — keyed on FACILITYID.
@@ -152,6 +159,7 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
         id: SUBSTATIONS_FILL_LAYER,
         type: "fill",
         source: SUBSTATIONS_SOURCE,
+        slot: FILL_SLOT,
         // Only set `filter` when one exists — `filter: undefined` fails Mapbox's
         // layer validation and the layer is silently dropped. The setFilter
         // effect below applies (and clears) filters after load regardless.
@@ -256,7 +264,7 @@ export function MapView({ data, selectedId, onSelect, filters }: MapViewProps) {
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      <MapTooltip tooltip={tooltip} />
+      <MapTooltip ref={tooltipRef} />
       <MapLegend
         metric={colorMetric}
         scale={scale}

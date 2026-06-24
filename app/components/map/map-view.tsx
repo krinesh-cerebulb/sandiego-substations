@@ -20,21 +20,16 @@ import type { MetricKey } from "~/lib/metrics";
 import type { SubstationCollection } from "~/types/substation";
 import { MapLegend } from "./map-legend";
 
-/** Tailwind `sm` breakpoint; below it the left rail collapses. */
-const PANEL_BREAKPOINT = 640;
-/** Left viewport padding (desktop) — shifts the data right, freeing the left
- *  area for KPI overlays. Also keeps the data clear of the detail panel,
- *  since this exceeds the panel's width (`sm:w-96` = 384px). */
-const LEFT_RESERVE = 420;
-
-/** Camera padding: reserves the left area on desktop, modest margins on mobile. */
-function mapPadding(): mapboxgl.PaddingOptions {
-  const left = window.innerWidth >= PANEL_BREAKPOINT ? LEFT_RESERVE : 48;
-  return { top: 48, right: 48, bottom: 48, left };
-}
+/** Substation highlighted as the current work area (identification only — not
+ *  a selection). */
+const HIGHLIGHTED_NAME = "SHADOWRIDGE";
+const HIGHLIGHT_LAYER = "substations-highlight";
 
 const LABEL_BASE =
-  "pointer-events-none whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md";
+  // `pointer-events-none!` (important) is required: Mapbox sets `pointer-events:
+  // auto` inline on visible markers, which overrides a non-important class — so
+  // the label would steal clicks (and cause hover flicker). !important wins.
+  "pointer-events-none! whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md";
 /** Border accent toggled by classList — a primary accent for the selected one. */
 const LABEL_SELECTED = "border-primary";
 const LABEL_DEFAULT = "border-border";
@@ -114,7 +109,7 @@ export function MapView({
       container: containerRef.current,
       style: MAP_STYLE,
       bounds: toLngLatBounds(dataRef.current),
-      fitBoundsOptions: { padding: mapPadding() },
+      fitBoundsOptions: { padding: 48 },
     });
     mapRef.current = map;
 
@@ -242,6 +237,20 @@ export function MapView({
           "fill-opacity": FILL_OPACITY_EXPRESSION,
           // Polygon outline for clearer edge definition.
           "fill-outline-color": "rgb(100, 116, 139)",
+        },
+      });
+
+      // Identify the current work area — a bold outline on one substation.
+      // Independent of selection (clicking still selects any polygon normally).
+      map.addLayer({
+        id: HIGHLIGHT_LAYER,
+        type: "line",
+        source: SUBSTATIONS_SOURCE,
+        slot: FILL_SLOT,
+        filter: ["==", ["get", "NAME"], HIGHLIGHTED_NAME],
+        paint: {
+          "line-color": "#2563eb",
+          "line-width": 3,
         },
       });
 

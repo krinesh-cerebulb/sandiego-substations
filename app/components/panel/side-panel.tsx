@@ -8,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
-import { ScrollArea } from "~/components/ui/scroll-area";
 import { cn } from "~/lib/utils";
 import type { SubstationFeature } from "~/types/substation";
 import { SubstationDetails } from "./substation-details";
@@ -18,6 +17,20 @@ interface SidePanelProps {
   substation: SubstationFeature | null;
   onClose: () => void;
 }
+
+/**
+ * Equipment shortcuts shown beneath the attribute list. Served from `public/`.
+ * `href` is a placeholder (no real destination yet) — swap per image later.
+ */
+const NAV_LINKS = [
+  { src: "/transformer.png", alt: "Transformer", href: "https://google.com" },
+  {
+    src: "/circuit-breaker.png",
+    alt: "Circuit breaker",
+    href: "https://google.com",
+  },
+  { src: "/battery.png", alt: "Battery", href: "https://google.com" },
+] as const;
 
 /**
  * Selected-substation details as a translucent floating card (top-left),
@@ -51,10 +64,30 @@ export function SidePanel({ substation, onClose }: SidePanelProps) {
         </CardAction>
       </CardHeader>
 
-      <CardContent>
-        <ScrollArea className="max-h-[calc(100vh-3rem)]">
-          <SubstationDetails properties={substation.properties} />
-        </ScrollArea>
+      {/* Fixed max height + native overflow so the data list and image links
+          scroll together on short viewports. */}
+      <CardContent className="max-h-[calc(100vh-8rem)] overflow-y-auto">
+        <SubstationDetails properties={substation.properties} />
+
+        {/* Equipment navigation — image links beneath the data list. */}
+        <nav className="mt-3 flex items-center justify-center gap-3 border-t border-border pt-3">
+          {NAV_LINKS.map((link) => (
+            <a
+              key={link.src}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={link.alt}
+              className="rounded-md p-1.5 transition-colors hover:bg-accent"
+            >
+              <img
+                src={link.src}
+                alt={link.alt}
+                className="size-8 object-contain"
+              />
+            </a>
+          ))}
+        </nav>
       </CardContent>
     </Card>
   );

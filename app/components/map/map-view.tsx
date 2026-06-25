@@ -240,17 +240,19 @@ export function MapView({
         },
       });
 
-      // Identify the current work area — a bold outline on one substation.
-      // Independent of selection (clicking still selects any polygon normally).
+      // Identify the current work area — a solid fill on one substation,
+      // drawn over the metric fill. Amber reads as "active / focus here" and
+      // stays legible against the pastel metric palette. Independent of
+      // selection (clicking still selects any polygon normally).
       map.addLayer({
         id: HIGHLIGHT_LAYER,
-        type: "line",
+        type: "fill",
         source: SUBSTATIONS_SOURCE,
         slot: FILL_SLOT,
         filter: ["==", ["get", "NAME"], HIGHLIGHTED_NAME],
         paint: {
-          "line-color": "#2563eb",
-          "line-width": 3,
+          "fill-color": "#f59e0b",
+          "fill-opacity": 0.85,
         },
       });
 

@@ -31,9 +31,9 @@ const NAV_LINKS = [
   {
     src: "/circuit-breaker.png",
     alt: "Circuit breaker",
-    href: "",
+    href: null,
   },
-  { src: "/battery.png", alt: "Battery", href: "" },
+  { src: "/battery.png", alt: "Battery", href: null },
 ] as const;
 
 /**
@@ -75,22 +75,37 @@ export function SidePanel({ substation, onClose }: SidePanelProps) {
 
         {/* Equipment navigation — image links beneath the data list. */}
         <nav className="mt-3 flex items-center justify-center gap-3 border-t border-border pt-3">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.src}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={link.alt}
-              className="rounded-md p-1.5 transition-colors hover:bg-accent"
-            >
-              <img
-                src={link.src}
-                alt={link.alt}
-                className="size-8 object-contain"
-              />
-            </a>
-          ))}
+          {NAV_LINKS.map((link) =>
+            link?.href ? (
+              <a
+                key={link.src}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={link.alt}
+                className="rounded-md p-1.5 transition-colors hover:bg-accent"
+              >
+                <img
+                  src={link.src}
+                  alt={link.alt}
+                  className="size-8 object-contain"
+                />
+              </a>
+            ) : (
+              <div
+                key={link.src}
+                rel="noopener noreferrer"
+                aria-label={link.alt}
+                className="rounded-md p-1.5 transition-colors"
+              >
+                <img
+                  src={link.src}
+                  alt={link.alt}
+                  className="size-8 object-contain"
+                />
+              </div>
+            ),
+          )}
         </nav>
       </CardContent>
     </Card>

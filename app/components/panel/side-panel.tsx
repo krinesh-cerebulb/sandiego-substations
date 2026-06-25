@@ -23,13 +23,17 @@ interface SidePanelProps {
  * `href` is a placeholder (no real destination yet) — swap per image later.
  */
 const NAV_LINKS = [
-  { src: "/transformer.png", alt: "Transformer", href: "https://google.com" },
+  {
+    src: "/transformer.png",
+    alt: "Transformer",
+    href: "https://170.90.111.131/PIVision/#/Displays/116/SDGE_TRANSFORMER_OVERVIEW",
+  },
   {
     src: "/circuit-breaker.png",
     alt: "Circuit breaker",
-    href: "https://google.com",
+    href: "",
   },
-  { src: "/battery.png", alt: "Battery", href: "https://google.com" },
+  { src: "/battery.png", alt: "Battery", href: "" },
 ] as const;
 
 /**

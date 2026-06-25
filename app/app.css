@@ -131,3 +131,8 @@
     @apply font-sans;
   }
 }
+
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  visibility: hidden;
+}

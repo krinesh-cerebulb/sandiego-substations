@@ -57,7 +57,7 @@ export const MapLegend = memo(function MapLegend({
     <Card
       size="sm"
       className={cn(
-        "absolute bottom-10 left-6 z-10 w-56 gap-2 bg-card/90 shadow-md backdrop-blur transition-transform duration-300 ease-out",
+        "absolute bottom-4 left-4 z-10 w-56 gap-2 bg-card/90 shadow-md backdrop-blur transition-transform duration-300 ease-out",
         shifted && "sm:translate-x-96",
       )}
     >

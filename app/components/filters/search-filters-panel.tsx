@@ -69,7 +69,7 @@ export function SearchFiltersPanel({
     <Card
       size="sm"
       className={cn(
-        "absolute bottom-10 left-68 z-20 w-80 origin-bottom-left gap-2 bg-card/90 shadow-md backdrop-blur",
+        "absolute bottom-4 left-64 z-20 w-80 origin-bottom-left gap-2 bg-card/90 shadow-md backdrop-blur",
         "animate-in fade-in-0 zoom-in-95 duration-200",
         shifted && "sm:translate-x-96",
       )}
